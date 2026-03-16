@@ -7,3 +7,6 @@
 
 # where built binarys should live
 build/
+
+.zig-cache/
+zig-out/
