@@ -1,0 +1,22 @@
+name: Build Project
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: nixos
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Build with Nix
+        run: |
+          nix-shell --pure --run "zig build"
+      
+      - name: Run tests
+        run: |
+          nix-shell --pure --run "zig build test"
