@@ -1,10 +1,6 @@
 const std = @import("std");
 const testing = std.testing;
 
-const MathError = error{
-    invalidSize,
-};
-
 const Matrix = extern struct {
     data: [*c]f32,
     rows: u32,
@@ -58,11 +54,9 @@ test "matrix_copy_test" {
     try testing.expectEqual(dst_data[0], 2.0);
 }
 
-pub export fn matrix_add(A: Matrix, B: Matrix, dst: Matrix) callconv(.C) void {
+pub export fn matrix_add(A: Matrix, B: Matrix, dst: Matrix, tmp: [*c]f32) callconv(.C) void {
     std.debug.assert(A.rows == B.rows and A.cols == B.cols and A.rows == dst.rows and A.cols == dst.cols);
     const n = A.rows * A.cols;
-    std.debug.assert(n <= 4096);
-    var tmp: [4096]f32 = undefined;
     var i: usize = 0;
     while (i < n) : (i += 1) {
         tmp[i] = A.data[i] + B.data[i];
@@ -76,45 +70,51 @@ pub export fn matrix_add(A: Matrix, B: Matrix, dst: Matrix) callconv(.C) void {
 test "matrix_add_test" {
     var A_data = [_]f32{ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 };
     var B_data = [_]f32{ 2.0, 4.0, 6.0, 8.0, 10.0, 12.0 };
-    const check_data = [_]f32{3.0, 6.0, 9.0, 12.0, 15.0, 18.0};
+    const check_data = [_]f32{ 3.0, 6.0, 9.0, 12.0, 15.0, 18.0 };
+    var tmp: [6]f32 = undefined;
 
     const A = Matrix{ .data = &A_data, .rows = 2, .cols = 3 };
     const B = Matrix{ .data = &B_data, .rows = 2, .cols = 3 };
-    
-    matrix_add(A, B, A);
+
+    matrix_add(A, B, A, &tmp);
 
     for (A_data, check_data) |d, c| {
         try testing.expectEqual(d, c);
     }
 }
 
-pub export fn matrix_sub(A: Matrix, B: Matrix, dst: Matrix) callconv(.C) void {
-    matrix_scalar_mult(B, -1);
-    matrix_add(A, B, dst);
+pub export fn matrix_sub(A: Matrix, B: Matrix, dst: Matrix, tmp: [*c]f32) callconv(.C) void {
+    std.debug.assert(A.rows == B.rows and A.cols == B.cols and A.rows == dst.rows and A.cols == dst.cols);
+    const n = A.rows * A.cols;
+    var i: usize = 0;
+    while (i < n) : (i += 1) {
+        tmp[i] = A.data[i] - B.data[i];
+    }
+    i = 0;
+    while (i < n) : (i += 1) {
+        dst.data[i] = tmp[i];
+    }
 }
 
 test "matrix_sub_test" {
     var A_data = [_]f32{ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 };
     var B_data = [_]f32{ 2.0, 4.0, 6.0, 8.0, 10.0, 12.0 };
-    const check_data = [_]f32{-1.0, -2.0, -3.0, -4.0, -5.0, -6.0};
+    const check_data = [_]f32{ -1.0, -2.0, -3.0, -4.0, -5.0, -6.0 };
+    var tmp: [6]f32 = undefined;
 
     const A = Matrix{ .data = &A_data, .rows = 2, .cols = 3 };
     const B = Matrix{ .data = &B_data, .rows = 2, .cols = 3 };
-    
-    matrix_sub(A, B, A);
+
+    matrix_sub(A, B, A, &tmp);
 
     for (A_data, check_data) |d, c| {
         try testing.expectEqual(d, c);
     }
 }
 
-
-pub export fn matrix_mult(A: Matrix, B: Matrix, dst: Matrix) callconv(.C) void {
+pub export fn matrix_mult(A: Matrix, B: Matrix, dst: Matrix, tmp: [*c]f32) callconv(.C) void {
     std.debug.assert(A.cols == B.rows);
     std.debug.assert(dst.rows == A.rows and dst.cols == B.cols);
-    const n = A.rows * B.cols;
-    std.debug.assert(n <= 4096);
-    var tmp: [4096]f32 = undefined;
     var i: usize = 0;
     while (i < A.rows) : (i += 1) {
         var j: usize = 0;
@@ -127,6 +127,7 @@ pub export fn matrix_mult(A: Matrix, B: Matrix, dst: Matrix) callconv(.C) void {
             tmp[i * B.cols + j] = sum;
         }
     }
+    const n = A.rows * B.cols;
     i = 0;
     while (i < n) : (i += 1) {
         dst.data[i] = tmp[i];
@@ -136,23 +137,20 @@ pub export fn matrix_mult(A: Matrix, B: Matrix, dst: Matrix) callconv(.C) void {
 test "matrix_mult_alias_test" {
     var A_data = [_]f32{ 1.0, 2.0, 3.0, 4.0 };
     var B_data = [_]f32{ 2.0, 0.0, 1.0, 2.0 };
-
     const check_data = [_]f32{ 4.0, 4.0, 10.0, 8.0 };
+    var tmp: [4]f32 = undefined;
 
     const A = Matrix{ .data = &A_data, .rows = 2, .cols = 2 };
     const B = Matrix{ .data = &B_data, .rows = 2, .cols = 2 };
 
-    matrix_mult(A, B, A);
+    matrix_mult(A, B, A, &tmp);
 
     for (A_data, check_data) |d, c| {
         try testing.expectEqual(d, c);
     }
 }
 
-pub export fn matrix_transpose(A: *Matrix) callconv(.C) void {
-    const n = A.rows * A.cols;
-    std.debug.assert(n <= 4096);
-    var tmp: [4096]f32 = undefined;
+pub export fn matrix_transpose(A: *Matrix, tmp: [*c]f32) callconv(.C) void {
     var i: usize = 0;
     while (i < A.rows) : (i += 1) {
         var j: usize = 0;
@@ -160,6 +158,7 @@ pub export fn matrix_transpose(A: *Matrix) callconv(.C) void {
             tmp[j * A.rows + i] = A.data[i * A.cols + j];
         }
     }
+    const n = A.rows * A.cols;
     i = 0;
     while (i < n) : (i += 1) {
         A.data[i] = tmp[i];
@@ -172,13 +171,13 @@ pub export fn matrix_transpose(A: *Matrix) callconv(.C) void {
 test "matrix_transpose_test" {
     var A_data = [_]f32{ 1.0, 2.0, 3.0, 4.0 };
     const check_data = [_]f32{ 1.0, 3.0, 2.0, 4.0 };
-    
+    var tmp: [4]f32 = undefined;
+
     var A = Matrix{ .data = &A_data, .rows = 2, .cols = 2 };
-    
-    matrix_transpose(&A);
+
+    matrix_transpose(&A, &tmp);
 
     for (A_data, check_data) |d, c| {
         try testing.expectEqual(d, c);
     }
 }
-
