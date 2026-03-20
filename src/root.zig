@@ -11,7 +11,7 @@ const Matrix = extern struct {
     cols: u32,
 };
 
-pub export fn scalar_mult(m: Matrix, alpha: f32) callconv(.C) void {
+pub export fn matrix_scalar_mult(m: Matrix, alpha: f32) callconv(.C) void {
     const n = m.rows * m.cols;
     var i: usize = 0;
     while (i < n) : (i += 1) {
@@ -25,7 +25,7 @@ test "matrix_scalar_mult_test" {
 
     const m = Matrix{ .data = &data, .rows = 2, .cols = 3 };
 
-    scalar_mult(m, 2.0);
+    matrix_scalar_mult(m, 2.0);
 
     for (data, check_data) |d, c| {
         try testing.expectEqual(d, c);
@@ -53,7 +53,7 @@ test "matrix_copy_test" {
         try testing.expectEqual(s, d);
     }
 
-    scalar_mult(dst, 2.0);
+    matrix_scalar_mult(dst, 2.0);
     try testing.expectEqual(src_data[0], 1.0);
     try testing.expectEqual(dst_data[0], 2.0);
 }
@@ -87,6 +87,27 @@ test "matrix_add_test" {
         try testing.expectEqual(d, c);
     }
 }
+
+pub export fn matrix_sub(A: Matrix, B: Matrix, dst: Matrix) callconv(.C) void {
+    matrix_scalar_mult(B, -1);
+    matrix_add(A, B, dst);
+}
+
+test "matrix_sub_test" {
+    var A_data = [_]f32{ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 };
+    var B_data = [_]f32{ 2.0, 4.0, 6.0, 8.0, 10.0, 12.0 };
+    const check_data = [_]f32{-1.0, -2.0, -3.0, -4.0, -5.0, -6.0};
+
+    const A = Matrix{ .data = &A_data, .rows = 2, .cols = 3 };
+    const B = Matrix{ .data = &B_data, .rows = 2, .cols = 3 };
+    
+    matrix_sub(A, B, A);
+
+    for (A_data, check_data) |d, c| {
+        try testing.expectEqual(d, c);
+    }
+}
+
 
 pub export fn matrix_mult(A: Matrix, B: Matrix, dst: Matrix) callconv(.C) void {
     std.debug.assert(A.cols == B.rows);
