@@ -19,12 +19,43 @@ pub export fn scalar_mult(m: Matrix, alpha: f32) callconv(.C) void {
     }
 }
 
+test "matrix_scalar_mult_test" {
+    var data = [_]f32{ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 };
+    const check_data = [_]f32{ 2.0, 4.0, 6.0, 8.0, 10.0, 12.0 };
+
+    const m = Matrix{ .data = &data, .rows = 2, .cols = 3 };
+
+    scalar_mult(m, 2.0);
+
+    for (data, check_data) |d, c| {
+        try testing.expectEqual(d, c);
+    }
+}
+
 pub export fn copy_matrix(dst: Matrix, src: Matrix) callconv(.C) void {
     const n = src.rows * src.cols;
     var i: usize = 0;
     while (i < n) : (i += 1) {
         dst.data[i] = src.data[i];
     }
+}
+
+test "matrix_copy_test" {
+    var src_data = [_]f32{ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 };
+    var dst_data = [_]f32{ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+
+    const src = Matrix{ .data = &src_data, .rows = 2, .cols = 3 };
+    const dst = Matrix{ .data = &dst_data, .rows = 2, .cols = 3 };
+
+    copy_matrix(dst, src);
+
+    for (src_data, dst_data) |s, d| {
+        try testing.expectEqual(s, d);
+    }
+
+    scalar_mult(dst, 2.0);
+    try testing.expectEqual(src_data[0], 1.0);
+    try testing.expectEqual(dst_data[0], 2.0);
 }
 
 pub export fn matrix_add(A: Matrix, B: Matrix, dst: Matrix) callconv(.C) void {
@@ -57,34 +88,42 @@ test "matrix_add_test" {
     }
 }
 
-test "matrix_scalar_mult_test" {
-    var data = [_]f32{ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 };
-    const check_data = [_]f32{ 2.0, 4.0, 6.0, 8.0, 10.0, 12.0 };
+pub export fn matrix_mult(A: Matrix, B: Matrix, dst: Matrix) callconv(.C) void {
+    std.debug.assert(A.cols == B.rows);
+    std.debug.assert(dst.rows == A.rows and dst.cols == B.cols);
+    const n = A.rows * B.cols;
+    std.debug.assert(n <= 4096);
+    var tmp: [4096]f32 = undefined;
+    var i: usize = 0;
+    while (i < A.rows) : (i += 1) {
+        var j: usize = 0;
+        while (j < B.cols) : (j += 1) {
+            var sum: f32 = 0.0;
+            var k: usize = 0;
+            while (k < A.cols) : (k += 1) {
+                sum += A.data[i * A.cols + k] * B.data[k * B.cols + j];
+            }
+            tmp[i * B.cols + j] = sum;
+        }
+    }
+    i = 0;
+    while (i < n) : (i += 1) {
+        dst.data[i] = tmp[i];
+    }
+}
 
-    const m = Matrix{ .data = &data, .rows = 2, .cols = 3 };
+test "matrix_mult_alias_test" {
+    var A_data = [_]f32{ 1.0, 2.0, 3.0, 4.0 };
+    var B_data = [_]f32{ 2.0, 0.0, 1.0, 2.0 };
 
-    scalar_mult(m, 2.0);
+    const check_data = [_]f32{ 4.0, 4.0, 10.0, 8.0 };
 
-    for (data, check_data) |d, c| {
+    const A = Matrix{ .data = &A_data, .rows = 2, .cols = 2 };
+    const B = Matrix{ .data = &B_data, .rows = 2, .cols = 2 };
+
+    matrix_mult(A, B, A);
+
+    for (A_data, check_data) |d, c| {
         try testing.expectEqual(d, c);
     }
 }
-
-test "matrix_copy_test" {
-    var src_data = [_]f32{ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 };
-    var dst_data = [_]f32{ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-
-    const src = Matrix{ .data = &src_data, .rows = 2, .cols = 3 };
-    const dst = Matrix{ .data = &dst_data, .rows = 2, .cols = 3 };
-
-    copy_matrix(dst, src);
-
-    for (src_data, dst_data) |s, d| {
-        try testing.expectEqual(s, d);
-    }
-
-    scalar_mult(dst, 2.0);
-    try testing.expectEqual(src_data[0], 1.0);
-    try testing.expectEqual(dst_data[0], 2.0);
-}
-
