@@ -148,3 +148,37 @@ test "matrix_mult_alias_test" {
         try testing.expectEqual(d, c);
     }
 }
+
+pub export fn matrix_transpose(A: *Matrix) callconv(.C) void {
+    const n = A.rows * A.cols;
+    std.debug.assert(n <= 4096);
+    var tmp: [4096]f32 = undefined;
+    var i: usize = 0;
+    while (i < A.rows) : (i += 1) {
+        var j: usize = 0;
+        while (j < A.cols) : (j += 1) {
+            tmp[j * A.rows + i] = A.data[i * A.cols + j];
+        }
+    }
+    i = 0;
+    while (i < n) : (i += 1) {
+        A.data[i] = tmp[i];
+    }
+    const r = A.rows;
+    A.rows = A.cols;
+    A.cols = r;
+}
+
+test "matrix_transpose_test" {
+    var A_data = [_]f32{ 1.0, 2.0, 3.0, 4.0 };
+    const check_data = [_]f32{ 1.0, 3.0, 2.0, 4.0 };
+    
+    var A = Matrix{ .data = &A_data, .rows = 2, .cols = 2 };
+    
+    matrix_transpose(&A);
+
+    for (A_data, check_data) |d, c| {
+        try testing.expectEqual(d, c);
+    }
+}
+
