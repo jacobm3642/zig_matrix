@@ -388,6 +388,12 @@ pub export fn matrix_print(m: Matrix) callconv(.C) void {
 }
 
 
+
+
+// -----------------------------------------------------
+// |                  bigger tests                     |
+// -----------------------------------------------------
+
 test "OLS_example_test" {
     var scrach_buffer: [32]f32 = undefined;
     var XD = [_]f32{1.0, 6.0, 1.0, 7.0, 1.0, 8.0};
@@ -422,4 +428,280 @@ test "OLS_example_test" {
     for (beta_hat, check_data) |d, c| {
         try testing.expectApproxEqAbs(c, d, 1e-3);
     }
+}
+
+fn expectSliceApproxEqAbs(expected: []const f32, actual: []const f32, tol: f32) !void {
+    try testing.expectEqual(expected.len, actual.len);
+    for (expected, actual) |e, a| {
+        try testing.expectApproxEqAbs(e, a, tol);
+    }
+}
+
+test "transpose twice restores original non-square matrix" {
+    var tmp: [6]f32 = undefined;
+    var data = [_]f32{
+        1.0, 2.0, 3.0,
+        4.0, 5.0, 6.0,
+    };
+    const original = data;
+
+    var A = Matrix{ .data = &data, .rows = 2, .cols = 3 };
+
+    matrix_transpose(&A, &tmp);
+    try testing.expectEqual(@as(u32, 3), A.rows);
+    try testing.expectEqual(@as(u32, 2), A.cols);
+
+    matrix_transpose(&A, &tmp);
+    try testing.expectEqual(@as(u32, 2), A.rows);
+    try testing.expectEqual(@as(u32, 3), A.cols);
+
+    try expectSliceApproxEqAbs(&original, &data, 1e-6);
+}
+
+test "identity matrix behavior" {
+    var tmp: [8]f32 = undefined;
+
+    var a_data = [_]f32{
+        2.0, 3.0,
+        4.0, 5.0,
+    };
+    var i_data = [_]f32{
+        1.0, 0.0,
+        0.0, 1.0,
+    };
+    var left_data: [4]f32 = undefined;
+    var right_data: [4]f32 = undefined;
+    var inv_i_data: [4]f32 = undefined;
+
+    const A = Matrix{ .data = &a_data, .rows = 2, .cols = 2 };
+    const I = Matrix{ .data = &i_data, .rows = 2, .cols = 2 };
+    const Left = Matrix{ .data = &left_data, .rows = 2, .cols = 2 };
+    const Right = Matrix{ .data = &right_data, .rows = 2, .cols = 2 };
+    const InvI = Matrix{ .data = &inv_i_data, .rows = 2, .cols = 2 };
+
+    matrix_mult(I, A, Left, &tmp);
+    matrix_mult(A, I, Right, &tmp);
+
+    try expectSliceApproxEqAbs(&a_data, &left_data, 1e-6);
+    try expectSliceApproxEqAbs(&a_data, &right_data, 1e-6);
+
+    const det_i = matrix_det(I, &tmp);
+    try testing.expectApproxEqAbs(@as(f32, 1.0), det_i, 1e-6);
+
+    const ret = matrix_inverse(I, InvI, &tmp);
+    try testing.expectEqual(@as(i32, 0), ret);
+    try expectSliceApproxEqAbs(&i_data, &inv_i_data, 1e-6);
+}
+
+test "inverse correctness via multiplication" {
+    var tmp_inv: [8]f32 = undefined;
+    var tmp_mul: [4]f32 = undefined;
+
+    var a_data = [_]f32{
+        4.0, 7.0,
+        2.0, 6.0,
+    };
+    var inv_data: [4]f32 = undefined;
+    var prod1_data: [4]f32 = undefined;
+    var prod2_data: [4]f32 = undefined;
+
+    const identity = [_]f32{
+        1.0, 0.0,
+        0.0, 1.0,
+    };
+
+    const A = Matrix{ .data = &a_data, .rows = 2, .cols = 2 };
+    const Inv = Matrix{ .data = &inv_data, .rows = 2, .cols = 2 };
+    const Prod1 = Matrix{ .data = &prod1_data, .rows = 2, .cols = 2 };
+    const Prod2 = Matrix{ .data = &prod2_data, .rows = 2, .cols = 2 };
+
+    const ret = matrix_inverse(A, Inv, &tmp_inv);
+    try testing.expectEqual(@as(i32, 0), ret);
+
+    matrix_mult(A, Inv, Prod1, &tmp_mul);
+    matrix_mult(Inv, A, Prod2, &tmp_mul);
+
+    try expectSliceApproxEqAbs(&identity, &prod1_data, 1e-4);
+    try expectSliceApproxEqAbs(&identity, &prod2_data, 1e-4);
+}
+
+test "singular matrix inverse fails and determinant is zero" {
+    var tmp_inv: [8]f32 = undefined;
+    var tmp_det: [4]f32 = undefined;
+
+    var singular_data = [_]f32{
+        1.0, 2.0,
+        2.0, 4.0,
+    };
+    var dst_data: [4]f32 = undefined;
+
+    const A = Matrix{ .data = &singular_data, .rows = 2, .cols = 2 };
+    const Dst = Matrix{ .data = &dst_data, .rows = 2, .cols = 2 };
+
+    const det = matrix_det(A, &tmp_det);
+    try testing.expectApproxEqAbs(@as(f32, 0.0), det, 1e-6);
+
+    const ret = matrix_inverse(A, Dst, &tmp_inv);
+    try testing.expectEqual(@as(i32, -1), ret);
+}
+
+test "determinant of upper triangular matrix is product of diagonal" {
+    var tmp: [9]f32 = undefined;
+    var data = [_]f32{
+        2.0, 1.0, 3.0,
+        0.0, 4.0, 5.0,
+        0.0, 0.0, 6.0,
+    };
+    const A = Matrix{ .data = &data, .rows = 3, .cols = 3 };
+
+    const det = matrix_det(A, &tmp);
+    try testing.expectApproxEqAbs(@as(f32, 48.0), det, 1e-5);
+}
+
+test "matrix_map matches matrix_scalar_mult for doubling" {
+    const twice = struct {
+        fn call(x: f32) callconv(.C) f32 {
+            return 2.0 * x;
+        }
+    }.call;
+
+    var a_data = [_]f32{
+        1.0, 2.0,
+        3.0, 4.0,
+    };
+    var b_data = a_data;
+
+    const A = Matrix{ .data = &a_data, .rows = 2, .cols = 2 };
+    const B = Matrix{ .data = &b_data, .rows = 2, .cols = 2 };
+
+    matrix_map(A, &twice);
+    matrix_scalar_mult(B, 2.0);
+
+    try expectSliceApproxEqAbs(&b_data, &a_data, 1e-6);
+}
+
+test "add then subtract recovers original" {
+    var tmp: [6]f32 = undefined;
+
+    var a_data = [_]f32{
+        1.0, 2.0, 3.0,
+        4.0, 5.0, 6.0,
+    };
+    var b_data = [_]f32{
+        6.0, 5.0, 4.0,
+        3.0, 2.0, 1.0,
+    };
+    const original_a = a_data;
+
+    const A = Matrix{ .data = &a_data, .rows = 2, .cols = 3 };
+    const B = Matrix{ .data = &b_data, .rows = 2, .cols = 3 };
+
+    matrix_add(A, B, A, &tmp);
+    matrix_sub(A, B, A, &tmp);
+
+    try expectSliceApproxEqAbs(&original_a, &a_data, 1e-6);
+}
+
+test "matrix multiplication distributes over addition" {
+    var tmp_add: [6]f32 = undefined;
+    var tmp_mul: [4]f32 = undefined;
+    var tmp_sum: [4]f32 = undefined;
+
+    var a_data = [_]f32{
+        1.0, 2.0, 3.0,
+        4.0, 5.0, 6.0,
+    };
+    var b_data = [_]f32{
+        1.0, 0.0,
+        0.0, 1.0,
+        1.0, 1.0,
+    };
+    var c_data = [_]f32{
+        2.0, 1.0,
+        1.0, 0.0,
+        0.0, 2.0,
+    };
+
+    var b_plus_c_data: [6]f32 = undefined;
+    var left_data: [4]f32 = undefined;
+    var ab_data: [4]f32 = undefined;
+    var ac_data: [4]f32 = undefined;
+    var right_data: [4]f32 = undefined;
+
+    const A = Matrix{ .data = &a_data, .rows = 2, .cols = 3 };
+    const B = Matrix{ .data = &b_data, .rows = 3, .cols = 2 };
+    const C = Matrix{ .data = &c_data, .rows = 3, .cols = 2 };
+    const BPlusC = Matrix{ .data = &b_plus_c_data, .rows = 3, .cols = 2 };
+    const Left = Matrix{ .data = &left_data, .rows = 2, .cols = 2 };
+    const AB = Matrix{ .data = &ab_data, .rows = 2, .cols = 2 };
+    const AC = Matrix{ .data = &ac_data, .rows = 2, .cols = 2 };
+    const Right = Matrix{ .data = &right_data, .rows = 2, .cols = 2 };
+
+    matrix_add(B, C, BPlusC, &tmp_add);
+    matrix_mult(A, BPlusC, Left, &tmp_mul);
+
+    matrix_mult(A, B, AB, &tmp_mul);
+    matrix_mult(A, C, AC, &tmp_mul);
+    matrix_add(AB, AC, Right, &tmp_sum);
+
+    try expectSliceApproxEqAbs(&right_data, &left_data, 1e-5);
+}
+
+test "scalar multiplication distributes over addition" {
+    var tmp: [4]f32 = undefined;
+
+    var a_data = [_]f32{
+        1.0, 2.0,
+        3.0, 4.0,
+    };
+    var b_data = [_]f32{
+        5.0, 6.0,
+        7.0, 8.0,
+    };
+
+    var left_data: [4]f32 = undefined;
+    var right1_data = a_data;
+    var right2_data = b_data;
+    var right_data: [4]f32 = undefined;
+
+    const alpha: f32 = 3.5;
+
+    const A = Matrix{ .data = &a_data, .rows = 2, .cols = 2 };
+    const B = Matrix{ .data = &b_data, .rows = 2, .cols = 2 };
+    const Left = Matrix{ .data = &left_data, .rows = 2, .cols = 2 };
+    const Right1 = Matrix{ .data = &right1_data, .rows = 2, .cols = 2 };
+    const Right2 = Matrix{ .data = &right2_data, .rows = 2, .cols = 2 };
+    const Right = Matrix{ .data = &right_data, .rows = 2, .cols = 2 };
+
+    matrix_add(A, B, Left, &tmp);
+    matrix_scalar_mult(Left, alpha);
+
+    matrix_scalar_mult(Right1, alpha);
+    matrix_scalar_mult(Right2, alpha);
+    matrix_add(Right1, Right2, Right, &tmp);
+
+    try expectSliceApproxEqAbs(&right_data, &left_data, 1e-5);
+}
+
+test "1x1 edge cases" {
+    var tmp2: [2]f32 = undefined;
+    var tmp1: [1]f32 = undefined;
+
+    var a_data = [_]f32{ 5.0 };
+    var inv_data: [1]f32 = undefined;
+
+    var A = Matrix{ .data = &a_data, .rows = 1, .cols = 1 };
+    const Inv = Matrix{ .data = &inv_data, .rows = 1, .cols = 1 };
+
+    const det = matrix_det(A, &tmp1);
+    try testing.expectApproxEqAbs(@as(f32, 5.0), det, 1e-6);
+
+    const ret = matrix_inverse(A, Inv, &tmp2);
+    try testing.expectEqual(@as(i32, 0), ret);
+    try testing.expectApproxEqAbs(@as(f32, 0.2), inv_data[0], 1e-6);
+
+    matrix_transpose(&A, &tmp1);
+    try testing.expectEqual(@as(u32, 1), A.rows);
+    try testing.expectEqual(@as(u32, 1), A.cols);
+    try testing.expectApproxEqAbs(@as(f32, 5.0), a_data[0], 1e-6);
 }
