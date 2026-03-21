@@ -101,6 +101,9 @@ pub export fn matrix_sub(A: Matrix, B: Matrix, dst: Matrix, tmp: [*c]f32) callco
 test "matrix_sub_test" {
     var A_data = [_]f32{ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 };
     var B_data = [_]f32{ 2.0, 4.0, 6.0, 8.0, 10.0, 12.0 };
+
+    var OLS_test = [_]f32{ 9.0, 16.0, 21.0};
+    
     const check_data = [_]f32{ -1.0, -2.0, -3.0, -4.0, -5.0, -6.0 };
     var tmp: [6]f32 = undefined;
 
@@ -112,6 +115,16 @@ test "matrix_sub_test" {
     for (A_data, check_data) |d, c| {
         try testing.expectEqual(d, c);
     }
+
+    const C = Matrix{ .data = &OLS_test, .rows = 3, .cols = 1 };
+    const D = Matrix{ .data = &OLS_test, .rows = 3, .cols = 1 };
+
+    matrix_sub(C, D, C, &tmp);
+
+    for (OLS_test) |d| {
+        try testing.expectEqual(d, 0);
+    }
+
 }
 
 pub export fn matrix_mult(A: Matrix, B: Matrix, dst: Matrix, tmp: [*c]f32) callconv(.C) void {
