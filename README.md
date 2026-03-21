@@ -4,7 +4,7 @@ A small linear algebra library written in Zig for use from C.
 
 ![Workflow Status](http://charon:3000/jacobm3642/zig_math/actions/workflows/build.yml/badge.svg)
 > [!NOTE]
-> doesnt work on github as this repo is primarly self hosted
+> Workflow Status doesnt work on github as this repo is primarly self hosted and github is just a mirror
 
 ## Contract
 
