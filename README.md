@@ -12,7 +12,7 @@ this is a basic linear algebra library written in zig for my use in C
 
 - shape correctness is a precondition
 
-- exact aliasing is allowed where implemented
+- exact aliasing is allowed
 
 - assertions catch misuse during development
 
