@@ -386,3 +386,40 @@ pub export fn matrix_print(m: Matrix) callconv(.C) void {
     }
     _ = c_imp.printf("\n");
 }
+
+
+test "OLS_example_test" {
+    var scrach_buffer: [32]f32 = undefined;
+    var XD = [_]f32{1.0, 6.0, 1.0, 7.0, 1.0, 8.0};
+    var XDT = [_]f32{0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+    var YD = [_]f32{9.0, 15.0, 21.0};
+    const check_data = [_]f32{-27.0, 6.0};
+    
+    var X = Matrix{.data = &XD, .rows = 3, .cols = 2};
+    var XT = Matrix{.data = &XDT, .rows = 3, .cols = 2};
+    const Y = Matrix{.data = &YD, .rows = 3, .cols = 1};
+
+    copy_matrix(XT, X);
+
+    matrix_transpose(&XT, &scrach_buffer);
+    
+    const XTX = Matrix{.data = &XDT, .rows = 2, .cols = 2};
+
+    matrix_mult(XT, X, XTX, &scrach_buffer);
+    
+    _ = matrix_inverse(XTX, XTX, &scrach_buffer);
+
+    matrix_transpose(&X, &scrach_buffer);
+
+    const XTy = Matrix{.data = &XD, .rows = 2, .cols = 1};
+
+    matrix_mult(X, Y, XTy, &scrach_buffer);
+    
+    matrix_mult(XTX, XTy, XTy, &scrach_buffer);
+    
+    const beta_hat = XD[0..2];
+
+    for (beta_hat, check_data) |d, c| {
+        try testing.expectApproxEqAbs(c, d, 1e-3);
+    }
+}
