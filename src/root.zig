@@ -387,8 +387,57 @@ pub export fn matrix_print(m: Matrix) callconv(.C) void {
     _ = c_imp.printf("\n");
 }
 
+pub export fn matrix_random(M: Matrix, min: f32, max: f32) callconv(.C) void {
+    var prng: std.Random.DefaultPrng = .init(blk: {
+        var seed: u64 = undefined;
+        if (std.posix.getrandom(std.mem.asBytes(&seed))) |_| {} else |_| {
+            return;
+        }
+        break :blk seed;
+    });
+    const rand = prng.random();
+    const n = M.rows * M.cols;
+    var i: usize = 0;
 
+    while (i < n) : (i += 1) {
+        M.data[i] = (@mod(rand.float(f32), max - min)) + min;
+    }
+}
 
+test "random_matrix_test" {
+    var AD: [64]f32 = undefined;
+    
+    const M = Matrix{.data = &AD, .rows = 8, .cols = 8};
+
+    matrix_random(M, 0.3, 0.7);
+
+    for (AD) |d| {
+        try std.testing.expect(d < 0.7 and d >= 0.3);
+    }
+}
+
+pub export fn matrix_zero(M: Matrix) callconv(.C) void {
+    const zero = struct {
+        fn call(_: f32) callconv(.C) f32 {
+            return 0;
+        }
+    }.call;
+    
+    matrix_map(M, &zero);
+}
+
+test "random_zero_test" {
+    var AD: [64]f32 = undefined;
+    
+    const M = Matrix{.data = &AD, .rows = 8, .cols = 8};
+
+    matrix_zero(M);
+
+    for (AD) |d| {
+        try std.testing.expect(d == 0);
+    }
+
+}
 
 // -----------------------------------------------------
 // |                  bigger tests                     |
