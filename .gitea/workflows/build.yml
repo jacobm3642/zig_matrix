@@ -20,3 +20,7 @@ jobs:
       - name: Run tests
         run: |
           nix-shell --pure --run "zig build test"
+      
+      - name: Sync with github
+        run: |
+          nix-shell --run "./sync.sh"

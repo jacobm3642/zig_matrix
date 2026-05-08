@@ -85,6 +85,20 @@ test "matrix_add_test" {
     }
 }
 
+
+pub export fn matrix_elementwise_mult(A: Matrix, B: Matrix, dst: Matrix, tmp: [*c]f32) callconv(.C) void {
+    std.debug.assert(A.rows == B.rows and A.cols == B.cols and A.rows == dst.rows and A.cols == dst.cols);
+    const n = A.rows * A.cols;
+    var i: usize = 0;
+    while (i < n) : (i += 1) {
+        tmp[i] = A.data[i] * B.data[i];
+    }
+    i = 0;
+    while (i < n) : (i += 1) {
+        dst.data[i] = tmp[i];
+    }
+}
+
 pub export fn matrix_sub(A: Matrix, B: Matrix, dst: Matrix, tmp: [*c]f32) callconv(.C) void {
     std.debug.assert(A.rows == B.rows and A.cols == B.cols and A.rows == dst.rows and A.cols == dst.cols);
     const n = A.rows * A.cols;
@@ -387,6 +401,25 @@ pub export fn matrix_print(m: Matrix) callconv(.C) void {
     _ = c_imp.printf("\n");
 }
 
+pub export fn matrix_set_all(M: Matrix, val: f32) callconv(.C) void {
+    var i: usize = 0;
+    while (i < M.rows * M.cols) : (i += 1) {
+        M.data[i] = val;
+    }
+}
+
+test "matrix_set_all_test" {
+    var AD: [64]f32 = undefined;
+    
+    const M = Matrix{.data = &AD, .rows = 8, .cols = 8};
+
+    matrix_set_all(M, 99.82);
+
+    for (AD) |d| {
+        try std.testing.expect(d == 99.82);
+    }
+}
+
 pub export fn matrix_random(M: Matrix, min: f32, max: f32) callconv(.C) void {
     var prng: std.Random.DefaultPrng = .init(blk: {
         var seed: u64 = undefined;
@@ -400,7 +433,7 @@ pub export fn matrix_random(M: Matrix, min: f32, max: f32) callconv(.C) void {
     var i: usize = 0;
 
     while (i < n) : (i += 1) {
-        M.data[i] = (@mod(rand.float(f32), max - min)) + min;
+        M.data[i] = min + rand.float(f32) * (max - min);
     }
 }
 
@@ -417,13 +450,7 @@ test "random_matrix_test" {
 }
 
 pub export fn matrix_zero(M: Matrix) callconv(.C) void {
-    const zero = struct {
-        fn call(_: f32) callconv(.C) f32 {
-            return 0;
-        }
-    }.call;
-    
-    matrix_map(M, &zero);
+    matrix_set_all(M, 0);
 }
 
 test "random_zero_test" {
