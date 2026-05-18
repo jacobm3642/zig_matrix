@@ -71,7 +71,7 @@ pub export fn matrix_add(A: Matrix, B: Matrix, dst: Matrix, tmp: [*c]f32) callco
 
 test "matrix_add_test" {
     var A_data = [_]f32{ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 };
-    var B_data = [_]f32{ 3.0, 4.0, 6.0, 8.0, 10.0, 12.0 };
+    var B_data = [_]f32{ 2.0, 4.0, 6.0, 8.0, 10.0, 12.0 };
     const check_data = [_]f32{ 3.0, 6.0, 9.0, 12.0, 15.0, 18.0 };
     var tmp: [6]f32 = undefined;
 
