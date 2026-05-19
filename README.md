@@ -1,6 +1,6 @@
 # zig math
 
-A small linear algebra library written in Zig for use from C.
+A small linear algebra library written in Zig for use in C.
 
 ![Workflow Status](http://charon:3000/jacobm3642/zig_math/actions/workflows/build.yml/badge.svg)
 > [!NOTE]
